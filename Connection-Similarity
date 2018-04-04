@@ -1,0 +1,55 @@
+# Defining connection similarity (Average of local edge overlaps taking into
+# account degree). Inputs G1 and G2 are the two graphs being compared. The third
+# input, I, is either a) a number between 0 and 1, representing the contribution 
+# to the similarity of a node isolated in both layers, b) "null" meaning isolated
+# nodes are ignored completely, and the sum is normalised by count, which is the
+# number of 'active' nodes, or c) "dim" meaning the more doubly isolated nodes 
+# there are, the less each one contributes to the sum. This is done by normalising
+# by count as in the "null" case, plus log(#nodes isolated in both layers).
+
+def ConnectionSimilarity(G1,G2,I):
+    A1 = nx.to_numpy_matrix(G1)
+    A2 = nx.to_numpy_matrix(G2)
+    sim = 0
+    local_sims = np.empty(0)
+    if I == 'null':
+        count = 0
+        for i in range(len(A1)):
+            if np.sum(A1[i,:]) == 0 and np.sum(A2[:,i]) == 0:
+                True                                             
+            else:                                               
+                overlap_i = np.dot(A1[i,:],A2[:,i])
+                sim_i = overlap_i/(np.sum(A1[i,:])+np.sum(A2[:,i])-overlap_i)
+                sim += sim_i
+                count +=1
+        Similarity = sim/count
+        return Similarity
+    elif I == 'dim':
+        count1 = 0
+        count2 = 0
+        for i in range(len(A1)):
+            if np.sum(A1[i,:]) == 0 and np.sum(A2[:,i]) == 0:
+                count2 += 1                                             
+            else:                                               
+                overlap_i = np.dot(A1[i,:],A2[:,i])
+                sim_i = overlap_i/(np.sum(A1[i,:])+np.sum(A2[:,i])-overlap_i)
+                sim += sim_i
+                count1 += 1
+        if count2 == 0:                            # If dim is selected and there are no
+            Similarity = sim/count1                # isolated nodes we get a log(0), this 
+            return Similarity                      # deals with this case.
+        else:
+            Similarity = sim/(count1 + np.log2(count2))    # The base of this logarithm may be changed.
+            return Similarity                              # the higher it is the less effect isolated
+    elif I >= 0 and I <= 1:                                # nodes will have
+        for i in range(len(A1)):
+            if np.sum(A1[i,:]) == 0 and np.sum(A2[:,i]) == 0:
+                sim += I                                             
+            else:                                               
+                overlap_i = np.dot(A1[i,:],A2[:,i])
+                sim_i = overlap_i/(np.sum(A1[i,:])+np.sum(A2[:,i])-overlap_i)
+                sim += sim_i
+        Similarity = sim/(len(A1))
+        return Similarity
+    else:
+        print("The third argument must be a number between 0 and 1 inclusive, 'null', or 'dim')
