@@ -1,0 +1,64 @@
+# Inputs are matrices encoding partitions of the nodes in the two graphs,
+# these can be found by a number of methods. The Louvain method for 
+# community detection gives a dictionary, so we include some code here
+# that translates this into a matrix.
+
+import networkx as nx
+import numpy as np
+from numpy import linalg as LA
+
+def entropy(C):                   # 0*log(0) is defined to be 0
+    (n,K) = np.shape(C)
+    H = 0
+    for k in range(K):
+        Pk = np.sum(C[:,k])/n
+        if Pk > 0:
+            H -= Pk*(np.log2(Pk))
+    return H
+
+def MutualInformation(C1,C2):     # We define 0*log(0) to be 0, so only 
+    (n,K1) = np.shape(C1)         # add to I when Pk1k2 is nonzero
+    (n,K2) = np.shape(C2)
+    I = 0
+    for k in range(K1):
+        Pk1 = np.sum(C1[:,k])/n
+        for i in range(K2):
+            Pk2 = np.sum(C2[:,i])/n
+            Pk1k2 = np.dot((np.transpose(C1[:,k])),C2[:,i])/n
+            if Pk1k2 > 0:
+                I += Pk1k2*(np.log2(Pk1k2/(Pk1*Pk2)))
+    return I
+
+def VariationInformation(C1,C2):
+    H1 = entropy(C1)
+    H2 = entropy(C2)
+    I = MutualInformation(C1,C2)
+    VI = H1 + H2 - 2*I
+    return VI
+    
+# Converting dictionary into matrix
+
+def LouvMatrix(P):
+    ind= {k:i for i,k in enumerate(P.keys())}
+    val = P.values()
+    n = int(len(val))
+    k = int(max(val) + 1)
+    C = np.zeros((n, k))
+    for key, val in P.items():
+        C[ind[key],val] = 1
+    return C
+    
+# Defining VI Similarity
+
+from networkx import community
+from community import community_louvain as com_louv
+
+def VI_Similarity(G1,G2):
+    n = nx.number_of_nodes(G1)
+    PG1 = com_louv.best_partition(G1)
+    PG2 = com_louv.best_partition(G2)
+    MG1 = LouvMatrix(PG1)
+    MG2 = LouvMatrix(PG2)
+    VI_Sim = 1 - VariationInformation(MG1,MG2)/np.log2(n)
+    return VI_Sim
+    
