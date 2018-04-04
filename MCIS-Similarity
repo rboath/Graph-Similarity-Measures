@@ -1,0 +1,111 @@
+# Defining Similarity based on MCIS
+
+# Function returning modular product of two graphs. Modular product 
+# is formed with nodes corresponding to pairs of nodes (u1,u2) 
+# where u1 is from G1 and u2 is from G2. There is an edge between
+# (u1,u2) and (v1,v2) if:
+# 1) we have u1 =/= v1 AND u2 =/= v2
+# 2) (u1,v1) is not an edge of G1 AND (u2,v2) is not an edge of G2 
+# OR (u1,v1) is an edge of G1 AND (u2,v2) is an edge of G2
+#
+# Our code looks at the adjacency matrix of G2 and creates a list 
+# of positions (not on the diagonal) of ones and a list for zeros.
+# We then go through the upper triangular part of the adjacency 
+# matrix of G1 (not including the diagonal) and if an entry is one, 
+# we add the edges corresponding to ones in A2 to our modular graph.
+# Similar for if an entry is zero
+
+def ModularProduct(G1,G2):
+    G1 = nx.convert_node_labels_to_integers(G1)
+    G2 = nx.convert_node_labels_to_integers(G2)
+    n1 = len(G1.nodes())
+    n2 = len(G2.nodes())
+    n2edges = len(G2.edges())
+    nodes = range(n1*n2)
+    Mod = nx.empty_graph(len(nodes))
+    A1 = nx.to_numpy_matrix(G1)
+    A2 = nx.to_numpy_matrix(G2)
+    A2zeros = [(0,0)]*((len(A2)*(len(A2)-1))-2*n2edges)  # I had trouble creating an empty list 
+    count_zeros = 0                                      # and then adding a pair (i,j), as it
+    A2ones = [(0,0)]*2*n2edges                           # flattened (i,j) before appending on to
+    count_ones = 0                                       # the list. This is a likely inefficient
+    for i in range(len(A2)):                             # workaround.
+        for j in range(i,len(A2)):
+            if i == j:
+                True
+            else:
+                if A2[i,j] == 0:
+                    A2zeros[count_zeros] = (i,j)
+                    A2zeros[count_zeros+1] = (j,i)      
+                    count_zeros += 2                    
+                else:                                   
+                    A2ones[count_ones] = (i,j)
+                    A2ones[count_ones+1] = (j,i)
+                    count_ones += 2
+    for i in range(n1):
+        for j in range(i,n1):
+            if i == j:
+                True
+            else:
+                if A1[i,j] == 0:
+                    for y in A2zeros:
+                        e = i*n2 + y[0]         # Node labels in the modular product
+                        f = j*n2 + y[1]         # are not pairs, but run from 0 to n1*n2.
+                        Mod.add_edge(e,f)       # These calculations convert the pairs 
+                if A1[i,j] == 1:                # to the corresponding integers.
+                    for y in A2ones:
+                        e = i*n2 + y[0]
+                        f = j*n2 + y[1]
+                        Mod.add_edge(e,f)
+    return Mod
+            
+# MCIS similarity based on largest clique in modular product
+            
+def SimilarityMCS(G1,G2):
+    n1 = len(G1.nodes())
+    n2 = len(G2.nodes())
+    n = max(n1,n2)
+    Mod = ModularProduct(G1,G2)
+    clique_number = nx.graph_clique_number(Mod)
+    sim_mcs = clique_number/n
+    return sim_mcs
+
+# MCIS similarity based on approximate largest clique in modular 
+# product (largest clique finding is NP-Hard so approximate
+# algorithms save time)
+
+# Couldn't import the approximate clique number algorithm from the 
+# approximations module of networkx for some reason, so copied and
+# pasted source code for the function large_clique_size. 
+# 
+# https://networkx.github.io/documentation/networkx-2.1/_modules/
+# networkx/algorithms/approximation/clique.html
+
+def large_clique_size(G):
+    
+    degrees = G.degree
+
+    def _clique_heuristic(G, U, size, best_size):
+        if not U:
+            return max(best_size, size)
+        u = max(U, key=degrees)
+        U.remove(u)
+        N_prime = {v for v in G[u] if degrees[v] >= best_size}
+        return _clique_heuristic(G, U & N_prime, size + 1, best_size)
+
+    best_size = 0
+    nodes = (u for u in G if degrees[u] >= best_size)
+    for u in nodes:
+        neighbors = {v for v in G[u] if degrees[v] >= best_size}
+        best_size = _clique_heuristic(G, neighbors, 1, best_size)
+
+    return best_size
+
+def ApproxSimilarityMCS(G1,G2):
+    n1 = len(G1.nodes())
+    n2 = len(G2.nodes())
+    n = max(n1,n2)
+    Mod = ModularProduct(G1,G2)
+    clique_number = large_clique_size(Mod)
+    sim_mcs = clique_number/n
+    return sim_mcs
